@@ -32,7 +32,32 @@ with BeforeAndAfterAll {
       expectMsg(RegistrationAck)
 
       val workLoadString = "I love akka"
-       
+      master ! Work(workLoadString)
+
+      // the interaction between the master and the slave actor
+      slave.expectMsg(SlaveWork(workLoadString, testActor))
+      slave.reply(WorkCompleted(3, testActor))
+
+      expectMsg(Report(3)) // testActor receives the Report(3)
+    }
+
+    "aggregate data correctly" in {
+      val master = system.actorOf(Props[Master])
+      val slave = TestProbe("slave")
+
+      master ! Register(slave.ref)
+      expectMsg(RegistrationAck)
+
+      val workLoadString = "I love akka"
+      master ! Work(workLoadString)
+      master ! Work(workLoadString)
+
+      // in the meantime I don't have a slave actor
+      slave.receiveWhile() {
+        case SlaveWork(`workLoadString`, `testActor`) => slave.reply(WorkCompleted(3, testActor))
+      }
+      expectMsg(Report(3))
+      expectMsg(Report(6))
     }
   }
 }
